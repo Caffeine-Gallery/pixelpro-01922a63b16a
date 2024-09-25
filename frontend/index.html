@@ -3,27 +3,250 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Editor</title>
-    <link rel="stylesheet" href="index.css">
+    <title>Interactive Image Editor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: black;
+            color: white;
+        }
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .image-container {
+            aspect-ratio: 1;
+            background-color: #4a5568;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+        .image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .upload-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #3182ce;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .upload-input {
+            display: none;
+        }
+        .grid-container {
+            aspect-ratio: 1;
+            background: linear-gradient(to bottom right, #4a5568, #1a202c);
+            position: relative;
+            cursor: crosshair;
+            border-radius: 8px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(11, 1fr);
+            grid-template-rows: repeat(11, 1fr);
+            position: absolute;
+            inset: 0;
+        }
+        .grid-dot {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background-color: white;
+            opacity: 0.3;
+            transition: width 0.1s, height 0.1s, opacity 0.1s, background-color 0.1s;
+        }
+        .cursor {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            background-color: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: left 0.1s, top 0.1s;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <h1>Image Editor</h1>
-        <input type="file" id="imageUpload" accept="image/*">
-        <div class="editor">
-            <canvas id="canvas"></canvas>
-            <div class="controls">
-                <label for="brightness">Brightness:</label>
-                <input type="range" id="brightness" min="-100" max="100" value="0">
-                <label for="contrast">Contrast:</label>
-                <input type="range" id="contrast" min="-100" max="100" value="0">
-                <label for="saturation">Saturation:</label>
-                <input type="range" id="saturation" min="-100" max="100" value="0">
-                <button id="cropBtn">Crop</button>
-                <button id="saveBtn">Save</button>
+        <div class="controls">
+            <div>
+                <span id="toneValue">TONE 0</span>
+                <span id="colorValue">COLOR 0</span>
             </div>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="21" y1="4" x2="14" y2="4"></line>
+                <line x1="10" y1="4" x2="3" y2="4"></line>
+                <line x1="21" y1="12" x2="12" y2="12"></line>
+                <line x1="8" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="20" x2="16" y2="20"></line>
+                <line x1="12" y1="20" x2="3" y2="20"></line>
+                <line x1="14" y1="2" x2="14" y2="6"></line>
+                <line x1="8" y1="10" x2="8" y2="14"></line>
+                <line x1="16" y1="18" x2="16" y2="22"></line>
+            </svg>
+        </div>
+        
+        <div class="image-container" id="imageContainer">
+            <label class="upload-label">
+                Upload Image
+                <input type="file" accept="image/*" class="upload-input" id="imageUpload">
+            </label>
+        </div>
+        
+        <div class="grid-container" id="gridContainer">
+            <div class="grid" id="grid"></div>
+            <div class="cursor" id="cursor"></div>
         </div>
     </div>
-    <script type="module" src="index.js"></script>
+
+    <script>
+        const imageContainer = document.getElementById('imageContainer');
+        const imageUpload = document.getElementById('imageUpload');
+        const gridContainer = document.getElementById('gridContainer');
+        const grid = document.getElementById('grid');
+        const cursor = document.getElementById('cursor');
+        const toneValue = document.getElementById('toneValue');
+        const colorValue = document.getElementById('colorValue');
+
+        let tone = 0;
+        let color = 0;
+        let isDragging = false;
+        let image = null;
+        const gridSize = 11;
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                image = reader.result;
+                updateImage();
+            };
+            if (file) {
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function updateImage() {
+            if (image) {
+                imageContainer.innerHTML = `<img src="${image}" alt="Uploaded image" style="filter: brightness(${1 + tone/100}) saturate(${1 + color/100})">`;
+            }
+        }
+
+        function snapToGrid(value) {
+            return Math.round(value / (100 / (gridSize - 1))) * (100 / (gridSize - 1));
+        }
+
+        function updateValues(clientX, clientY) {
+            const rect = gridContainer.getBoundingClientRect();
+            const x = (clientX - rect.left) / rect.width;
+            const y = 1 - (clientY - rect.top) / rect.height;
+            const newTone = snapToGrid(Math.round(x * 200 - 100));
+            const newColor = snapToGrid(Math.round(y * 200 - 100));
+
+            tone = Math.max(-100, Math.min(100, newTone));
+            color = Math.max(-100, Math.min(100, newColor));
+
+            toneValue.textContent = `TONE ${tone}`;
+            colorValue.textContent = `COLOR ${color}`;
+
+            updateCursor();
+            updateImage();
+            updateGridDots();
+        }
+
+        function updateCursor() {
+            cursor.style.left = `${(tone + 100) / 2}%`;
+            cursor.style.top = `${100 - (color + 100) / 2}%`;
+        }
+
+        function calculateDotStyle(dotX, dotY) {
+            const cursorX = (tone + 100) / (200 / (gridSize - 1));
+            const cursorY = (100 - color) / (200 / (gridSize - 1));
+            const dx = Math.abs(dotX - cursorX);
+            const dy = Math.abs(dotY - cursorY);
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            const maxInfluence = 2;
+            if (distance <= maxInfluence) {
+                const minSize = 4;
+                const maxSize = 16;
+                const size = minSize + (maxSize - minSize) * (1 - distance / maxInfluence);
+                const opacity = 0.3 + (0.7 * (1 - distance / maxInfluence));
+                return `width: ${size}px; height: ${size}px; opacity: ${opacity}; background-color: hsl(${(1 - distance / maxInfluence) * 60}, 100%, 75%);`;
+            }
+            return '';
+        }
+
+        function updateGridDots() {
+            const dots = grid.querySelectorAll('.dot');
+            dots.forEach((dot, i) => {
+                const x = i % gridSize;
+                const y = Math.floor(i / gridSize);
+                dot.style = calculateDotStyle(x, y);
+            });
+        }
+
+        function createGrid() {
+            for (let i = 0; i < gridSize * gridSize; i++) {
+                const dotContainer = document.createElement('div');
+                dotContainer.className = 'grid-dot';
+                const dot = document.createElement('div');
+                dot.className = 'dot';
+                dotContainer.appendChild(dot);
+                grid.appendChild(dotContainer);
+            }
+        }
+
+        function handlePointerDown(event) {
+            event.preventDefault();
+            isDragging = true;
+            updateValues(event.clientX, event.clientY);
+        }
+
+        function handlePointerMove(event) {
+            if (isDragging) {
+                updateValues(event.clientX, event.clientY);
+            }
+        }
+
+        function handlePointerUp() {
+            isDragging = false;
+        }
+
+        imageUpload.addEventListener('change', handleImageUpload);
+        gridContainer.addEventListener('pointerdown', handlePointerDown);
+        gridContainer.addEventListener('pointermove', handlePointerMove);
+        gridContainer.addEventListener('pointerup', handlePointerUp);
+        gridContainer.addEventListener('pointerleave', handlePointerUp);
+
+        createGrid();
+        updateCursor();
+    </script>
 </body>
 </html>
