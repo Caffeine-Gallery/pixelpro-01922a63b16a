@@ -1,0 +1,16 @@
+type Result_1 = 
+ variant {
+   err: text;
+   ok: blob;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok;
+ };
+service : {
+  deleteImage: (text) -> (Result);
+  getImage: (text) -> (Result_1) query;
+  listImages: () -> (vec text) query;
+  uploadImage: (text, blob) -> (Result);
+}
