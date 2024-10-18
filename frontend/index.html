@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Image Editor</title>
+    <title>Advanced Image Editor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -18,7 +18,7 @@
         }
         .container {
             width: 100%;
-            max-width: 400px;
+            max-width: 800px;
             padding: 20px;
         }
         .controls {
@@ -90,26 +90,55 @@
             transform: translate(-50%, -50%);
             transition: left 0.1s, top 0.1s;
         }
+        .button {
+            background-color: #3182ce;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .gallery-item {
+            aspect-ratio: 1;
+            background-color: #4a5568;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <div id="authContainer">
+            <button id="loginButton" class="button">Login</button>
+            <span id="principalId"></span>
+        </div>
         <div class="controls">
             <div>
                 <span id="toneValue">TONE 0</span>
                 <span id="colorValue">COLOR 0</span>
+                <span id="contrastValue">CONTRAST 0</span>
+                <span id="hueValue">HUE 0</span>
             </div>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="21" y1="4" x2="14" y2="4"></line>
-                <line x1="10" y1="4" x2="3" y2="4"></line>
-                <line x1="21" y1="12" x2="12" y2="12"></line>
-                <line x1="8" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="20" x2="16" y2="20"></line>
-                <line x1="12" y1="20" x2="3" y2="20"></line>
-                <line x1="14" y1="2" x2="14" y2="6"></line>
-                <line x1="8" y1="10" x2="8" y2="14"></line>
-                <line x1="16" y1="18" x2="16" y2="22"></line>
-            </svg>
+            <div>
+                <button id="undoButton" class="button">Undo</button>
+                <button id="redoButton" class="button">Redo</button>
+                <button id="resetButton" class="button">Reset</button>
+                <button id="saveButton" class="button">Save</button>
+                <button id="shareButton" class="button">Share</button>
+            </div>
         </div>
         
         <div class="image-container" id="imageContainer">
@@ -123,9 +152,16 @@
             <div class="grid" id="grid"></div>
             <div class="cursor" id="cursor"></div>
         </div>
+
+        <div class="gallery" id="gallery"></div>
     </div>
 
-    <script>
+    <script type="module">
+        import { AuthClient } from "@dfinity/auth-client";
+        import { Actor, HttpAgent } from "@dfinity/agent";
+
+        let authClient;
+        let actor;
         const imageContainer = document.getElementById('imageContainer');
         const imageUpload = document.getElementById('imageUpload');
         const gridContainer = document.getElementById('gridContainer');
@@ -133,12 +169,68 @@
         const cursor = document.getElementById('cursor');
         const toneValue = document.getElementById('toneValue');
         const colorValue = document.getElementById('colorValue');
+        const contrastValue = document.getElementById('contrastValue');
+        const hueValue = document.getElementById('hueValue');
+        const undoButton = document.getElementById('undoButton');
+        const redoButton = document.getElementById('redoButton');
+        const resetButton = document.getElementById('resetButton');
+        const saveButton = document.getElementById('saveButton');
+        const shareButton = document.getElementById('shareButton');
+        const gallery = document.getElementById('gallery');
+        const loginButton = document.getElementById('loginButton');
+        const principalId = document.getElementById('principalId');
 
         let tone = 0;
         let color = 0;
+        let contrast = 0;
+        let hue = 0;
         let isDragging = false;
         let image = null;
         const gridSize = 11;
+        let editHistory = [];
+        let currentEditIndex = -1;
+
+        const backendCanisterIdEnvVar = 'BACKEND_CANISTER_ID';
+        const backendCanisterId = process.env[backendCanisterIdEnvVar] || '';
+
+        const idlFactory = ({ IDL }) => {
+            return IDL.Service({
+                'uploadImage': IDL.Func([IDL.Text, IDL.Vec(IDL.Nat8)], [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })], []),
+                'getImage': IDL.Func([IDL.Text], [IDL.Variant({ 'ok' : IDL.Vec(IDL.Nat8), 'err' : IDL.Text })], ['query']),
+                'listImages': IDL.Func([], [IDL.Vec(IDL.Text)], ['query']),
+                'deleteImage': IDL.Func([IDL.Text], [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })], [])
+            });
+        };
+
+        async function initAuth() {
+            authClient = await AuthClient.create();
+            if (await authClient.isAuthenticated()) {
+                handleAuthenticated();
+            }
+        }
+
+        async function login() {
+            authClient.login({
+                identityProvider: "https://identity.ic0.app/#authorize",
+                onSuccess: handleAuthenticated,
+            });
+        }
+
+        async function handleAuthenticated() {
+            const identity = await authClient.getIdentity();
+            principalId.textContent = identity.getPrincipal().toText();
+            loginButton.style.display = 'none';
+
+            const agent = new HttpAgent({ identity });
+            actor = Actor.createActor(idlFactory, {
+                agent,
+                canisterId: backendCanisterId,
+            });
+
+            loadGallery();
+        }
+
+        loginButton.onclick = login;
 
         function handleImageUpload(event) {
             const file = event.target.files[0];
@@ -146,6 +238,7 @@
             reader.onloadend = () => {
                 image = reader.result;
                 updateImage();
+                saveEditState();
             };
             if (file) {
                 reader.readAsDataURL(file);
@@ -154,7 +247,7 @@
 
         function updateImage() {
             if (image) {
-                imageContainer.innerHTML = `<img src="${image}" alt="Uploaded image" style="filter: brightness(${1 + tone/100}) saturate(${1 + color/100})">`;
+                imageContainer.innerHTML = `<img src="${image}" alt="Uploaded image" style="filter: brightness(${1 + tone/100}) saturate(${1 + color/100}) contrast(${1 + contrast/100}) hue-rotate(${hue}deg)">`;
             }
         }
 
@@ -178,6 +271,7 @@
             updateCursor();
             updateImage();
             updateGridDots();
+            saveEditState();
         }
 
         function updateCursor() {
@@ -239,14 +333,158 @@
             isDragging = false;
         }
 
+        function saveEditState() {
+            const state = { tone, color, contrast, hue };
+            editHistory = editHistory.slice(0, currentEditIndex + 1);
+            editHistory.push(state);
+            currentEditIndex = editHistory.length - 1;
+            updateUndoRedoButtons();
+        }
+
+        function updateUndoRedoButtons() {
+            undoButton.disabled = currentEditIndex <= 0;
+            redoButton.disabled = currentEditIndex >= editHistory.length - 1;
+        }
+
+        function undo() {
+            if (currentEditIndex > 0) {
+                currentEditIndex--;
+                const state = editHistory[currentEditIndex];
+                tone = state.tone;
+                color = state.color;
+                contrast = state.contrast;
+                hue = state.hue;
+                updateImage();
+                updateCursor();
+                updateGridDots();
+                updateUndoRedoButtons();
+            }
+        }
+
+        function redo() {
+            if (currentEditIndex < editHistory.length - 1) {
+                currentEditIndex++;
+                const state = editHistory[currentEditIndex];
+                tone = state.tone;
+                color = state.color;
+                contrast = state.contrast;
+                hue = state.hue;
+                updateImage();
+                updateCursor();
+                updateGridDots();
+                updateUndoRedoButtons();
+            }
+        }
+
+        function reset() {
+            tone = 0;
+            color = 0;
+            contrast = 0;
+            hue = 0;
+            updateImage();
+            updateCursor();
+            updateGridDots();
+            saveEditState();
+        }
+
+        async function saveImage() {
+            if (!image) return;
+
+            const canvas = document.createElement('canvas');
+            const img = new Image();
+            img.onload = async () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.filter = `brightness(${1 + tone/100}) saturate(${1 + color/100}) contrast(${1 + contrast/100}) hue-rotate(${hue}deg)`;
+                ctx.drawImage(img, 0, 0);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                const arrayBuffer = await blob.arrayBuffer();
+                const name = `image_${Date.now()}.png`;
+
+                try {
+                    await actor.uploadImage(name, [...new Uint8Array(arrayBuffer)]);
+                    alert('Image saved successfully!');
+                    loadGallery();
+                } catch (error) {
+                    console.error('Error saving image:', error);
+                    alert('Failed to save image. Please try again.');
+                }
+            };
+            img.src = image;
+        }
+
+        async function loadGallery() {
+            try {
+                const imageNames = await actor.listImages();
+                gallery.innerHTML = '';
+                for (const name of imageNames) {
+                    const img = document.createElement('img');
+                    img.src = URL.createObjectURL(new Blob([await actor.getImage(name)], { type: 'image/png' }));
+                    img.alt = name;
+                    img.onclick = () => loadImageFromGallery(name);
+                    const galleryItem = document.createElement('div');
+                    galleryItem.className = 'gallery-item';
+                    galleryItem.appendChild(img);
+                    gallery.appendChild(galleryItem);
+                }
+            } catch (error) {
+                console.error('Error loading gallery:', error);
+            }
+        }
+
+        async function loadImageFromGallery(name) {
+            try {
+                const imageBlob = await actor.getImage(name);
+                image = URL.createObjectURL(new Blob([imageBlob], { type: 'image/png' }));
+                updateImage();
+                saveEditState();
+            } catch (error) {
+                console.error('Error loading image from gallery:', error);
+            }
+        }
+
+        function shareImage() {
+            if (!image) return;
+            const canvas = document.createElement('canvas');
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.filter = `brightness(${1 + tone/100}) saturate(${1 + color/100}) contrast(${1 + contrast/100}) hue-rotate(${hue}deg)`;
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob(blob => {
+                    const file = new File([blob], "edited_image.png", { type: "image/png" });
+                    const shareData = {
+                        files: [file],
+                    };
+                    if (navigator.share && navigator.canShare(shareData)) {
+                        navigator.share(shareData)
+                            .then(() => console.log('Image shared successfully'))
+                            .catch((error) => console.log('Error sharing image:', error));
+                    } else {
+                        alert('Sharing is not supported on this device/browser');
+                    }
+                }, 'image/png');
+            };
+            img.src = image;
+        }
+
         imageUpload.addEventListener('change', handleImageUpload);
         gridContainer.addEventListener('pointerdown', handlePointerDown);
         gridContainer.addEventListener('pointermove', handlePointerMove);
         gridContainer.addEventListener('pointerup', handlePointerUp);
         gridContainer.addEventListener('pointerleave', handlePointerUp);
+        undoButton.addEventListener('click', undo);
+        redoButton.addEventListener('click', redo);
+        resetButton.addEventListener('click', reset);
+        saveButton.addEventListener('click', saveImage);
+        shareButton.addEventListener('click', shareImage);
 
         createGrid();
         updateCursor();
+        initAuth();
     </script>
 </body>
 </html>

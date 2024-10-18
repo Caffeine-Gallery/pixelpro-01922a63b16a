@@ -1,7 +1,7 @@
 type Result_1 = 
  variant {
    err: text;
-   ok: blob;
+   ok: vec nat8;
  };
 type Result = 
  variant {
@@ -12,5 +12,5 @@ service : {
   deleteImage: (text) -> (Result);
   getImage: (text) -> (Result_1) query;
   listImages: () -> (vec text) query;
-  uploadImage: (text, blob) -> (Result);
+  uploadImage: (text, vec nat8) -> (Result);
 }

@@ -1,5 +1,6 @@
 import ExperimentalCycles "mo:base/ExperimentalCycles";
 import Hash "mo:base/Hash";
+import Nat8 "mo:base/Nat8";
 
 import Array "mo:base/Array";
 import Blob "mo:base/Blob";
@@ -26,18 +27,19 @@ actor ImageEditor {
         imageEntries := [];
     };
 
-    public shared(msg) func uploadImage(name: Text, data: Blob) : async Result.Result<(), Text> {
+    public shared(msg) func uploadImage(name: Text, data: [Nat8]) : async Result.Result<(), Text> {
         if (images.size() >= 100) {
             return #err("Storage limit reached");
         };
-        images.put(name, data);
+        let imageBlob = Blob.fromArray(data);
+        images.put(name, imageBlob);
         #ok(())
     };
 
-    public query func getImage(name: Text) : async Result.Result<Blob, Text> {
+    public query func getImage(name: Text) : async Result.Result<[Nat8], Text> {
         switch (images.get(name)) {
             case null { #err("Image not found") };
-            case (?image) { #ok(image) };
+            case (?image) { #ok(Blob.toArray(image)) };
         }
     };
 
