@@ -51,6 +51,7 @@
             padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
+            z-index: 10;
         }
         .upload-input {
             display: none;
@@ -67,6 +68,10 @@
         }
         .button:hover {
             background-color: #2c5282;
+        }
+        .button:disabled {
+            background-color: #718096;
+            cursor: not-allowed;
         }
         .gallery {
             display: grid;
@@ -137,6 +142,11 @@
             text-decoration: none;
             cursor: pointer;
         }
+        #errorMessage {
+            color: #fc8181;
+            margin-top: 10px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -147,12 +157,12 @@
         </div>
         <div class="controls">
             <div>
-                <button id="undoButton" class="button">Undo</button>
-                <button id="redoButton" class="button">Redo</button>
-                <button id="resetButton" class="button">Reset</button>
-                <button id="saveButton" class="button">Save</button>
-                <button id="shareButton" class="button">Share</button>
-                <button id="exportButton" class="button">Export</button>
+                <button id="undoButton" class="button" disabled>Undo</button>
+                <button id="redoButton" class="button" disabled>Redo</button>
+                <button id="resetButton" class="button" disabled>Reset</button>
+                <button id="saveButton" class="button" disabled>Save</button>
+                <button id="shareButton" class="button" disabled>Share</button>
+                <button id="exportButton" class="button" disabled>Export</button>
             </div>
         </div>
         
@@ -168,11 +178,13 @@
         
         <div class="image-container" id="imageContainer">
             <canvas id="canvas"></canvas>
-            <label class="upload-label">
+            <label class="upload-label" id="uploadLabel">
                 Upload Image
                 <input type="file" accept="image/*" class="upload-input" id="imageUpload">
             </label>
         </div>
+
+        <div id="errorMessage"></div>
 
         <div class="gallery" id="gallery"></div>
     </div>
@@ -217,6 +229,7 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const imageUpload = document.getElementById('imageUpload');
+        const uploadLabel = document.getElementById('uploadLabel');
         const undoButton = document.getElementById('undoButton');
         const redoButton = document.getElementById('redoButton');
         const resetButton = document.getElementById('resetButton');
@@ -230,6 +243,7 @@
         const textModal = document.getElementById('textModal');
         const resizeModal = document.getElementById('resizeModal');
         const filterModal = document.getElementById('filterModal');
+        const errorMessage = document.getElementById('errorMessage');
 
         let currentImage = null;
         let editHistory = [];
@@ -260,10 +274,15 @@
         }
 
         async function login() {
-            authClient.login({
-                identityProvider: "https://identity.ic0.app/#authorize",
-                onSuccess: handleAuthenticated,
-            });
+            try {
+                await authClient.login({
+                    identityProvider: "https://identity.ic0.app/#authorize",
+                    onSuccess: handleAuthenticated,
+                });
+            } catch (error) {
+                console.error("Login failed:", error);
+                showError("Login failed. Please try again.");
+            }
         }
 
         async function handleAuthenticated() {
@@ -278,6 +297,13 @@
             });
 
             loadGallery();
+            enableButtons();
+        }
+
+        function enableButtons() {
+            saveButton.disabled = false;
+            shareButton.disabled = false;
+            exportButton.disabled = false;
         }
 
         loginButton.onclick = login;
@@ -293,6 +319,8 @@
                     ctx.drawImage(img, 0, 0);
                     currentImage = canvas.toDataURL();
                     saveEditState();
+                    uploadLabel.style.display = 'none';
+                    enableButtons();
                 };
                 img.src = e.target.result;
             };
@@ -366,18 +394,22 @@
 
         async function saveImage() {
             if (!canvas.toDataURL()) return;
-
-            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-            const arrayBuffer = await blob.arrayBuffer();
-            const name = `image_${Date.now()}.png`;
+            if (!actor) {
+                showError("Please login before saving.");
+                return;
+            }
 
             try {
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                const arrayBuffer = await blob.arrayBuffer();
+                const name = `image_${Date.now()}.png`;
+
                 await actor.uploadImage(name, [...new Uint8Array(arrayBuffer)]);
-                alert('Image saved successfully!');
+                showError('Image saved successfully!', false);
                 loadGallery();
             } catch (error) {
                 console.error('Error saving image:', error);
-                alert('Failed to save image. Please try again.');
+                showError('Failed to save image. Please try again.');
             }
         }
 
@@ -397,6 +429,7 @@
                 }
             } catch (error) {
                 console.error('Error loading gallery:', error);
+                showError('Failed to load gallery. Please try again.');
             }
         }
 
@@ -411,10 +444,13 @@
                     currentImage = canvas.toDataURL();
                     textElements = [];
                     saveEditState();
+                    uploadLabel.style.display = 'none';
+                    enableButtons();
                 };
                 img.src = URL.createObjectURL(new Blob([imageBlob], { type: 'image/png' }));
             } catch (error) {
                 console.error('Error loading image from gallery:', error);
+                showError('Failed to load image. Please try again.');
             }
         }
 
@@ -428,9 +464,14 @@
                 if (navigator.share && navigator.canShare(shareData)) {
                     navigator.share(shareData)
                         .then(() => console.log('Image shared successfully'))
-                        .catch((error) => console.log('Error sharing image:', error));
+                        .catch((error) => {
+                            if (error.name !== 'AbortError') {
+                                console.error('Error sharing image:', error);
+                                showError('Failed to share image. Please try again.');
+                            }
+                        });
                 } else {
-                    alert('Sharing is not supported on this device/browser');
+                    showError('Sharing is not supported on this device/browser');
                 }
             }, 'image/png');
         }
@@ -577,6 +618,14 @@
             redrawCanvas();
             saveEditState();
             filterModal.style.display = 'none';
+        }
+
+        function showError(message, isError = true) {
+            errorMessage.textContent = message;
+            errorMessage.style.color = isError ? '#fc8181' : '#68d391';
+            setTimeout(() => {
+                errorMessage.textContent = '';
+            }, 3000);
         }
 
         imageUpload.addEventListener('change', handleImageUpload);
