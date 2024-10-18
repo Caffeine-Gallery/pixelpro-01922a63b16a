@@ -147,6 +147,22 @@
             margin-top: 10px;
             text-align: center;
         }
+        .text-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        .text-element {
+            position: absolute;
+            cursor: move;
+            user-select: none;
+            padding: 2px;
+            border: 1px solid transparent;
+        }
+        .text-element:hover, .text-element.selected {
+            border-color: #3182ce;
+        }
     </style>
 </head>
 <body>
@@ -178,6 +194,7 @@
         
         <div class="image-container" id="imageContainer">
             <canvas id="canvas"></canvas>
+            <div class="text-overlay" id="textOverlay"></div>
             <label class="upload-label" id="uploadLabel">
                 Upload Image
                 <input type="file" accept="image/*" class="upload-input" id="imageUpload">
@@ -244,6 +261,7 @@
         const resizeModal = document.getElementById('resizeModal');
         const filterModal = document.getElementById('filterModal');
         const errorMessage = document.getElementById('errorMessage');
+        const textOverlay = document.getElementById('textOverlay');
 
         let currentImage = null;
         let editHistory = [];
@@ -364,6 +382,7 @@
             if (currentImage) {
                 loadImageFromDataURL(currentImage);
                 textElements = [];
+                updateTextOverlay();
                 saveEditState();
             }
         }
@@ -371,7 +390,7 @@
         function loadEditState(state) {
             loadImageFromDataURL(state.imageData);
             textElements = state.textElements;
-            redrawCanvas();
+            updateTextOverlay();
         }
 
         function loadImageFromDataURL(dataURL) {
@@ -380,30 +399,23 @@
                 canvas.width = img.width;
                 canvas.height = img.height;
                 ctx.drawImage(img, 0, 0);
-                redrawCanvas();
             };
             img.src = dataURL;
         }
 
-        function redrawCanvas() {
-            ctx.drawImage(canvas, 0, 0);
+        function updateTextOverlay() {
+            textOverlay.innerHTML = '';
             textElements.forEach((element, index) => {
-                ctx.font = `${element.size}px Arial`;
-                ctx.fillStyle = element.color;
-                ctx.fillText(element.text, element.x, element.y);
-                
-                // Draw a border around the selected text
-                if (index === selectedTextIndex) {
-                    const metrics = ctx.measureText(element.text);
-                    ctx.strokeStyle = 'red';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(
-                        element.x - 5,
-                        element.y - element.size,
-                        metrics.width + 10,
-                        element.size + 10
-                    );
-                }
+                const textElement = document.createElement('div');
+                textElement.className = 'text-element';
+                textElement.style.left = `${element.x}px`;
+                textElement.style.top = `${element.y}px`;
+                textElement.style.color = element.color;
+                textElement.style.fontSize = `${element.size}px`;
+                textElement.textContent = element.text;
+                textElement.dataset.index = index;
+                textElement.addEventListener('mousedown', startDraggingText);
+                textOverlay.appendChild(textElement);
             });
         }
 
@@ -415,7 +427,19 @@
             }
 
             try {
-                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                const blob = await new Promise(resolve => {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = canvas.width;
+                    tempCanvas.height = canvas.height;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(canvas, 0, 0);
+                    textElements.forEach(element => {
+                        tempCtx.font = `${element.size}px Arial`;
+                        tempCtx.fillStyle = element.color;
+                        tempCtx.fillText(element.text, element.x, element.y);
+                    });
+                    tempCanvas.toBlob(resolve, 'image/png');
+                });
                 const arrayBuffer = await blob.arrayBuffer();
                 const name = `image_${Date.now()}.png`;
 
@@ -458,6 +482,7 @@
                     ctx.drawImage(img, 0, 0);
                     currentImage = canvas.toDataURL();
                     textElements = [];
+                    updateTextOverlay();
                     saveEditState();
                     uploadLabel.style.display = 'none';
                     enableButtons();
@@ -471,7 +496,17 @@
 
         function shareImage() {
             if (!canvas.toDataURL()) return;
-            canvas.toBlob(blob => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(canvas, 0, 0);
+            textElements.forEach(element => {
+                tempCtx.font = `${element.size}px Arial`;
+                tempCtx.fillStyle = element.color;
+                tempCtx.fillText(element.text, element.x, element.y);
+            });
+            tempCanvas.toBlob(blob => {
                 const file = new File([blob], "edited_image.png", { type: "image/png" });
                 const shareData = {
                     files: [file],
@@ -493,9 +528,19 @@
 
         function exportImage() {
             if (!canvas.toDataURL()) return;
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(canvas, 0, 0);
+            textElements.forEach(element => {
+                tempCtx.font = `${element.size}px Arial`;
+                tempCtx.fillStyle = element.color;
+                tempCtx.fillText(element.text, element.x, element.y);
+            });
             const link = document.createElement('a');
             link.download = 'edited_image.png';
-            link.href = canvas.toDataURL();
+            link.href = tempCanvas.toDataURL();
             link.click();
         }
 
@@ -563,7 +608,7 @@
                     color,
                     size
                 });
-                redrawCanvas();
+                updateTextOverlay();
                 saveEditState();
             }
             textModal.style.display = 'none';
@@ -581,7 +626,6 @@
             canvas.width = tempCanvas.width;
             canvas.height = tempCanvas.height;
             ctx.drawImage(tempCanvas, 0, 0);
-            redrawCanvas();
             saveEditState();
         }
 
@@ -597,7 +641,6 @@
                 canvas.width = width;
                 canvas.height = height;
                 ctx.drawImage(tempCanvas, 0, 0);
-                redrawCanvas();
                 saveEditState();
             }
             resizeModal.style.display = 'none';
@@ -630,7 +673,6 @@
                     break;
             }
             ctx.putImageData(imageData, 0, 0);
-            redrawCanvas();
             saveEditState();
             filterModal.style.display = 'none';
         }
@@ -644,51 +686,34 @@
         }
 
         function startDraggingText(e) {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            for (let i = textElements.length - 1; i >= 0; i--) {
-                const element = textElements[i];
-                ctx.font = `${element.size}px Arial`;
-                const metrics = ctx.measureText(element.text);
-                if (
-                    x >= element.x &&
-                    x <= element.x + metrics.width &&
-                    y >= element.y - element.size &&
-                    y <= element.y
-                ) {
-                    isDraggingText = true;
-                    selectedTextIndex = i;
-                    lastX = x;
-                    lastY = y;
-                    redrawCanvas();
-                    break;
-                }
-            }
+            isDraggingText = true;
+            selectedTextIndex = parseInt(e.target.dataset.index);
+            lastX = e.clientX;
+            lastY = e.clientY;
+            document.addEventListener('mousemove', dragText);
+            document.addEventListener('mouseup', stopDraggingText);
         }
 
         function dragText(e) {
             if (!isDraggingText) return;
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            const dx = x - lastX;
-            const dy = y - lastY;
+            const dx = e.clientX - lastX;
+            const dy = e.clientY - lastY;
             
             textElements[selectedTextIndex].x += dx;
             textElements[selectedTextIndex].y += dy;
             
-            lastX = x;
-            lastY = y;
+            lastX = e.clientX;
+            lastY = e.clientY;
             
-            redrawCanvas();
+            updateTextOverlay();
         }
 
         function stopDraggingText() {
             if (isDraggingText) {
                 isDraggingText = false;
                 saveEditState();
+                document.removeEventListener('mousemove', dragText);
+                document.removeEventListener('mouseup', stopDraggingText);
             }
         }
 
@@ -703,10 +728,6 @@
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
-        canvas.addEventListener('mousedown', startDraggingText);
-        canvas.addEventListener('mousemove', dragText);
-        canvas.addEventListener('mouseup', stopDraggingText);
-        canvas.addEventListener('mouseout', stopDraggingText);
         tools.forEach(tool => tool.addEventListener('click', () => setActiveTool(tool.dataset.tool)));
         document.getElementById('addTextButton').addEventListener('click', addText);
         document.getElementById('resizeButton').addEventListener('click', resizeImage);
