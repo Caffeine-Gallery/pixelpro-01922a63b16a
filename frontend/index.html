@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced Image Editor</title>
     <style>
+        :root {
+            --bg-color: #1a202c;
+            --text-color: #ffffff;
+            --primary-color: #3182ce;
+            --secondary-color: #4a5568;
+            --accent-color: #68d391;
+            --error-color: #fc8181;
+        }
+
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -13,14 +22,17 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: #1a202c;
-            color: white;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
         }
+
         .container {
             width: 100%;
             max-width: 1200px;
             padding: 20px;
         }
+
         .controls {
             display: flex;
             justify-content: space-between;
@@ -28,88 +40,109 @@
             margin-bottom: 16px;
             flex-wrap: wrap;
         }
+
         .image-container {
             aspect-ratio: 16/9;
-            background-color: #2d3748;
+            background-color: var(--secondary-color);
             margin-bottom: 16px;
             position: relative;
             overflow: hidden;
             border-radius: 8px;
         }
+
         .image-container img, .image-container canvas {
             width: 100%;
             height: 100%;
             object-fit: contain;
         }
+
         .upload-label {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: #3182ce;
-            color: white;
+            background-color: var(--primary-color);
+            color: var(--text-color);
             padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
             z-index: 10;
         }
+
         .upload-input {
             display: none;
         }
+
         .button {
-            background-color: #3182ce;
-            color: white;
+            background-color: var(--primary-color);
+            color: var(--text-color);
             border: none;
             padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
             margin-right: 8px;
             margin-bottom: 8px;
+            transition: background-color 0.3s;
         }
+
         .button:hover {
             background-color: #2c5282;
         }
+
         .button:disabled {
-            background-color: #718096;
+            background-color: var(--secondary-color);
             cursor: not-allowed;
         }
+
         .gallery {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             gap: 16px;
             margin-top: 16px;
         }
+
         .gallery-item {
             aspect-ratio: 1;
-            background-color: #2d3748;
+            background-color: var(--secondary-color);
             border-radius: 4px;
             overflow: hidden;
             cursor: pointer;
+            transition: transform 0.3s;
         }
+
+        .gallery-item:hover {
+            transform: scale(1.05);
+        }
+
         .gallery-item img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
+
         .toolbar {
             display: flex;
             justify-content: center;
             margin-bottom: 16px;
             flex-wrap: wrap;
         }
+
         .tool {
-            background-color: #4a5568;
-            color: white;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
             border: none;
             padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
             margin-right: 8px;
             margin-bottom: 8px;
+            transition: background-color 0.3s;
         }
+
         .tool.active {
-            background-color: #3182ce;
+            background-color: var(--primary-color);
         }
+
         .modal {
             display: none;
             position: fixed;
@@ -121,14 +154,16 @@
             overflow: auto;
             background-color: rgba(0,0,0,0.4);
         }
+
         .modal-content {
-            background-color: #2d3748;
+            background-color: var(--secondary-color);
             margin: 15% auto;
             padding: 20px;
             border-radius: 8px;
             width: 80%;
             max-width: 500px;
         }
+
         .close {
             color: #aaa;
             float: right;
@@ -136,23 +171,27 @@
             font-weight: bold;
             cursor: pointer;
         }
+
         .close:hover,
         .close:focus {
-            color: #fff;
+            color: var(--text-color);
             text-decoration: none;
             cursor: pointer;
         }
+
         #errorMessage {
-            color: #fc8181;
+            color: var(--error-color);
             margin-top: 10px;
             text-align: center;
         }
+
         .text-overlay {
             position: absolute;
             top: 0;
             left: 0;
             pointer-events: none;
         }
+
         .text-element {
             position: absolute;
             cursor: move;
@@ -160,36 +199,172 @@
             padding: 2px;
             border: 1px solid transparent;
         }
+
         .text-element:hover, .text-element.selected {
-            border-color: #3182ce;
+            border-color: var(--primary-color);
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 0;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        #zoomControls {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            gap: 5px;
+        }
+
+        #historyPanel {
+            position: fixed;
+            right: -300px;
+            top: 0;
+            width: 300px;
+            height: 100%;
+            background-color: var(--secondary-color);
+            transition: right 0.3s;
+            overflow-y: auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #historyPanel.open {
+            right: 0;
+        }
+
+        .history-item {
+            cursor: pointer;
+            padding: 10px;
+            border-bottom: 1px solid var(--primary-color);
+        }
+
+        .history-item:hover {
+            background-color: var(--primary-color);
+        }
+
+        #loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .spinner {
+            border: 5px solid var(--secondary-color);
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #darkModeToggle {
+            position: fixed;
+            top: 10px;
+            right: 10px;
         }
     </style>
 </head>
 <body>
+    <div id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <button id="darkModeToggle" class="button">Toggle Dark Mode</button>
+
     <div class="container">
         <div id="authContainer">
-            <button id="loginButton" class="button">Login</button>
+            <button id="loginButton" class="button tooltip">Login
+                <span class="tooltiptext">Log in to save and share your edits</span>
+            </button>
             <span id="principalId"></span>
         </div>
         <div class="controls">
             <div>
-                <button id="undoButton" class="button" disabled>Undo</button>
-                <button id="redoButton" class="button" disabled>Redo</button>
-                <button id="resetButton" class="button" disabled>Reset</button>
-                <button id="saveButton" class="button" disabled>Save</button>
-                <button id="shareButton" class="button" disabled>Share</button>
-                <button id="exportButton" class="button" disabled>Export</button>
+                <button id="undoButton" class="button tooltip" disabled>Undo
+                    <span class="tooltiptext">Undo last action (Ctrl+Z)</span>
+                </button>
+                <button id="redoButton" class="button tooltip" disabled>Redo
+                    <span class="tooltiptext">Redo last undone action (Ctrl+Y)</span>
+                </button>
+                <button id="resetButton" class="button tooltip" disabled>Reset
+                    <span class="tooltiptext">Reset all changes</span>
+                </button>
+                <button id="saveButton" class="button tooltip" disabled>Save
+                    <span class="tooltiptext">Save your edited image</span>
+                </button>
+                <button id="shareButton" class="button tooltip" disabled>Share
+                    <span class="tooltiptext">Share your edited image</span>
+                </button>
+                <button id="exportButton" class="button tooltip" disabled>Export
+                    <span class="tooltiptext">Export your edited image</span>
+                </button>
+                <button id="historyButton" class="button tooltip">History
+                    <span class="tooltiptext">View edit history</span>
+                </button>
             </div>
         </div>
         
         <div class="toolbar">
-            <button class="tool" data-tool="brush">Brush</button>
-            <button class="tool" data-tool="eraser">Eraser</button>
-            <button class="tool" data-tool="text">Text</button>
-            <button class="tool" data-tool="crop">Crop</button>
-            <button class="tool" data-tool="rotate">Rotate</button>
-            <button class="tool" data-tool="resize">Resize</button>
-            <button class="tool" data-tool="filter">Filters</button>
+            <button class="tool tooltip" data-tool="brush">Brush
+                <span class="tooltiptext">Draw on the image</span>
+            </button>
+            <button class="tool tooltip" data-tool="eraser">Eraser
+                <span class="tooltiptext">Erase parts of the image</span>
+            </button>
+            <button class="tool tooltip" data-tool="text">Text
+                <span class="tooltiptext">Add text to the image</span>
+            </button>
+            <button class="tool tooltip" data-tool="crop">Crop
+                <span class="tooltiptext">Crop the image</span>
+            </button>
+            <button class="tool tooltip" data-tool="rotate">Rotate
+                <span class="tooltiptext">Rotate the image</span>
+            </button>
+            <button class="tool tooltip" data-tool="resize">Resize
+                <span class="tooltiptext">Resize the image</span>
+            </button>
+            <button class="tool tooltip" data-tool="filter">Filters
+                <span class="tooltiptext">Apply filters to the image</span>
+            </button>
+            <input type="color" id="colorPicker" class="tooltip">
+                <span class="tooltiptext">Choose color for brush or text</span>
+            </input>
         </div>
         
         <div class="image-container" id="imageContainer">
@@ -199,11 +374,21 @@
                 Upload Image
                 <input type="file" accept="image/*" class="upload-input" id="imageUpload">
             </label>
+            <div id="zoomControls">
+                <button id="zoomIn" class="button">+</button>
+                <button id="zoomOut" class="button">-</button>
+                <span id="zoomLevel">100%</span>
+            </div>
         </div>
 
         <div id="errorMessage"></div>
 
         <div class="gallery" id="gallery"></div>
+    </div>
+
+    <div id="historyPanel">
+        <h3>Edit History</h3>
+        <div id="historyList"></div>
     </div>
 
     <div id="textModal" class="modal">
@@ -231,9 +416,25 @@
         <div class="modal-content">
             <span class="close">&times;</span>
             <h2>Apply Filter</h2>
+            <div id="filterPreview"></div>
             <button class="button" data-filter="grayscale">Grayscale</button>
             <button class="button" data-filter="sepia">Sepia</button>
             <button class="button" data-filter="invert">Invert</button>
+            <button id="applyFilterButton" class="button">Apply</button>
+        </div>
+    </div>
+
+    <div id="cropModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Crop Image</h2>
+            <select id="aspectRatio">
+                <option value="free">Free</option>
+                <option value="1:1">1:1</option>
+                <option value="4:3">4:3</option>
+                <option value="16:9">16:9</option>
+            </select>
+            <button id="applyCropButton" class="button">Apply Crop</button>
         </div>
     </div>
 
@@ -253,6 +454,7 @@
         const saveButton = document.getElementById('saveButton');
         const shareButton = document.getElementById('shareButton');
         const exportButton = document.getElementById('exportButton');
+        const historyButton = document.getElementById('historyButton');
         const gallery = document.getElementById('gallery');
         const loginButton = document.getElementById('loginButton');
         const principalId = document.getElementById('principalId');
@@ -260,8 +462,17 @@
         const textModal = document.getElementById('textModal');
         const resizeModal = document.getElementById('resizeModal');
         const filterModal = document.getElementById('filterModal');
+        const cropModal = document.getElementById('cropModal');
         const errorMessage = document.getElementById('errorMessage');
         const textOverlay = document.getElementById('textOverlay');
+        const colorPicker = document.getElementById('colorPicker');
+        const zoomIn = document.getElementById('zoomIn');
+        const zoomOut = document.getElementById('zoomOut');
+        const zoomLevel = document.getElementById('zoomLevel');
+        const historyPanel = document.getElementById('historyPanel');
+        const historyList = document.getElementById('historyList');
+        const loading = document.getElementById('loading');
+        const darkModeToggle = document.getElementById('darkModeToggle');
 
         let currentImage = null;
         let editHistory = [];
@@ -273,6 +484,8 @@
         let textElements = [];
         let isDraggingText = false;
         let selectedTextIndex = -1;
+        let zoom = 1;
+        let isDarkMode = false;
 
         const backendCanisterIdEnvVar = 'BACKEND_CANISTER_ID';
         const backendCanisterId = process.env[backendCanisterIdEnvVar] || '';
@@ -355,6 +568,7 @@
             });
             currentEditIndex = editHistory.length - 1;
             updateUndoRedoButtons();
+            updateHistoryPanel();
         }
 
         function updateUndoRedoButtons() {
@@ -380,10 +594,12 @@
 
         function reset() {
             if (currentImage) {
-                loadImageFromDataURL(currentImage);
-                textElements = [];
-                updateTextOverlay();
-                saveEditState();
+                if (confirm("Are you sure you want to reset all changes?")) {
+                    loadImageFromDataURL(currentImage);
+                    textElements = [];
+                    updateTextOverlay();
+                    saveEditState();
+                }
             }
         }
 
@@ -426,6 +642,7 @@
                 return;
             }
 
+            showLoading();
             try {
                 const blob = await new Promise(resolve => {
                     const tempCanvas = document.createElement('canvas');
@@ -449,10 +666,13 @@
             } catch (error) {
                 console.error('Error saving image:', error);
                 showError('Failed to save image. Please try again.');
+            } finally {
+                hideLoading();
             }
         }
 
         async function loadGallery() {
+            showLoading();
             try {
                 const imageNames = await actor.listImages();
                 gallery.innerHTML = '';
@@ -469,10 +689,13 @@
             } catch (error) {
                 console.error('Error loading gallery:', error);
                 showError('Failed to load gallery. Please try again.');
+            } finally {
+                hideLoading();
             }
         }
 
         async function loadImageFromGallery(name) {
+            showLoading();
             try {
                 const imageBlob = await actor.getImage(name);
                 const img = new Image();
@@ -486,11 +709,13 @@
                     saveEditState();
                     uploadLabel.style.display = 'none';
                     enableButtons();
+                    hideLoading();
                 };
                 img.src = URL.createObjectURL(new Blob([imageBlob], { type: 'image/png' }));
             } catch (error) {
                 console.error('Error loading image from gallery:', error);
                 showError('Failed to load image. Please try again.');
+                hideLoading();
             }
         }
 
@@ -546,21 +771,23 @@
 
         function startDrawing(e) {
             isDrawing = true;
-            [lastX, lastY] = [e.offsetX, e.offsetY];
+            [lastX, lastY] = [e.offsetX / zoom, e.offsetY / zoom];
         }
 
         function draw(e) {
             if (!isDrawing) return;
             ctx.beginPath();
             ctx.moveTo(lastX, lastY);
-            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.lineTo(e.offsetX / zoom, e.offsetY / zoom);
             ctx.stroke();
-            [lastX, lastY] = [e.offsetX, e.offsetY];
+            [lastX, lastY] = [e.offsetX / zoom, e.offsetY / zoom];
         }
 
         function stopDrawing() {
-            isDrawing = false;
-            saveEditState();
+            if (isDrawing) {
+                isDrawing = false;
+                saveEditState();
+            }
         }
 
         function setActiveTool(tool) {
@@ -571,7 +798,7 @@
             switch(tool) {
                 case 'brush':
                     ctx.globalCompositeOperation = 'source-over';
-                    ctx.strokeStyle = 'black';
+                    ctx.strokeStyle = colorPicker.value;
                     ctx.lineWidth = 5;
                     break;
                 case 'eraser':
@@ -582,7 +809,7 @@
                     textModal.style.display = 'block';
                     break;
                 case 'crop':
-                    // Implement crop functionality
+                    cropModal.style.display = 'block';
                     break;
                 case 'rotate':
                     rotateImage();
@@ -592,6 +819,7 @@
                     break;
                 case 'filter':
                     filterModal.style.display = 'block';
+                    updateFilterPreview();
                     break;
             }
         }
@@ -646,6 +874,25 @@
             resizeModal.style.display = 'none';
         }
 
+        function updateFilterPreview() {
+            const previewCanvas = document.createElement('canvas');
+            const previewCtx = previewCanvas.getContext('2d');
+            previewCanvas.width = 200;
+            previewCanvas.height = 200;
+            const aspectRatio = canvas.width / canvas.height;
+            let previewWidth, previewHeight;
+            if (aspectRatio > 1) {
+                previewWidth = 200;
+                previewHeight = 200 / aspectRatio;
+            } else {
+                previewHeight = 200;
+                previewWidth = 200 * aspectRatio;
+            }
+            previewCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, previewWidth, previewHeight);
+            document.getElementById('filterPreview').innerHTML = '';
+            document.getElementById('filterPreview').appendChild(previewCanvas);
+        }
+
         function applyFilter(filter) {
             let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             let data = imageData.data;
@@ -679,7 +926,7 @@
 
         function showError(message, isError = true) {
             errorMessage.textContent = message;
-            errorMessage.style.color = isError ? '#fc8181' : '#68d391';
+            errorMessage.style.color = isError ? 'var(--error-color)' : 'var(--accent-color)';
             setTimeout(() => {
                 errorMessage.textContent = '';
             }, 3000);
@@ -696,8 +943,8 @@
 
         function dragText(e) {
             if (!isDraggingText) return;
-            const dx = e.clientX - lastX;
-            const dy = e.clientY - lastY;
+            const dx = (e.clientX - lastX) / zoom;
+            const dy = (e.clientY - lastY) / zoom;
             
             textElements[selectedTextIndex].x += dx;
             textElements[selectedTextIndex].y += dy;
@@ -717,6 +964,42 @@
             }
         }
 
+        function updateZoom(delta) {
+            zoom = Math.max(0.1, Math.min(5, zoom + delta));
+            zoomLevel.textContent = `${Math.round(zoom * 100)}%`;
+            canvas.style.transform = `scale(${zoom})`;
+            canvas.style.transformOrigin = 'top left';
+        }
+
+        function updateHistoryPanel() {
+            historyList.innerHTML = '';
+            editHistory.forEach((state, index) => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                historyItem.textContent = `Edit ${index + 1}`;
+                historyItem.onclick = () => {
+                    currentEditIndex = index;
+                    loadEditState(state);
+                    updateUndoRedoButtons();
+                };
+                historyList.appendChild(historyItem);
+            });
+        }
+
+        function showLoading() {
+            loading.style.display = 'flex';
+        }
+
+        function hideLoading() {
+            loading.style.display = 'none';
+        }
+
+        function toggleDarkMode() {
+            isDarkMode = !isDarkMode;
+            document.body.style.setProperty('--bg-color', isDarkMode ? '#1a202c' : '#ffffff');
+            document.body.style.setProperty('--text-color', isDarkMode ? '#ffffff' : '#000000');
+        }
+
         imageUpload.addEventListener('change', handleImageUpload);
         undoButton.addEventListener('click', undo);
         redoButton.addEventListener('click', redo);
@@ -724,6 +1007,7 @@
         saveButton.addEventListener('click', saveImage);
         shareButton.addEventListener('click', shareImage);
         exportButton.addEventListener('click', exportImage);
+        historyButton.addEventListener('click', () => historyPanel.classList.toggle('open'));
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
@@ -731,11 +1015,33 @@
         tools.forEach(tool => tool.addEventListener('click', () => setActiveTool(tool.dataset.tool)));
         document.getElementById('addTextButton').addEventListener('click', addText);
         document.getElementById('resizeButton').addEventListener('click', resizeImage);
+        document.getElementById('applyFilterButton').addEventListener('click', () => applyFilter(document.querySelector('#filterModal .button.active').dataset.filter));
         document.querySelectorAll('#filterModal .button').forEach(btn => {
-            btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('#filterModal .button').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                applyFilter(e.target.dataset.filter);
+                updateFilterPreview();
+            });
         });
         document.querySelectorAll('.close').forEach(closeBtn => {
             closeBtn.addEventListener('click', () => closeBtn.closest('.modal').style.display = 'none');
+        });
+        colorPicker.addEventListener('change', () => {
+            if (currentTool === 'brush') {
+                ctx.strokeStyle = colorPicker.value;
+            }
+        });
+        zoomIn.addEventListener('click', () => updateZoom(0.1));
+        zoomOut.addEventListener('click', () => updateZoom(-0.1));
+        darkModeToggle.addEventListener('click', toggleDarkMode);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'z') {
+                undo();
+            } else if (e.ctrlKey && e.key === 'y') {
+                redo();
+            }
         });
 
         initAuth();
