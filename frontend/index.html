@@ -182,6 +182,8 @@
             <span class="close">&times;</span>
             <h2>Add Text</h2>
             <input type="text" id="textInput" placeholder="Enter text">
+            <input type="color" id="textColor" value="#000000">
+            <input type="number" id="textSize" min="10" max="100" value="30">
             <button id="addTextButton" class="button">Add Text</button>
         </div>
     </div>
@@ -236,6 +238,7 @@
         let lastX = 0;
         let lastY = 0;
         let currentTool = 'brush';
+        let textElements = [];
 
         const backendCanisterIdEnvVar = 'BACKEND_CANISTER_ID';
         const backendCanisterId = process.env[backendCanisterIdEnvVar] || '';
@@ -298,7 +301,10 @@
 
         function saveEditState() {
             editHistory = editHistory.slice(0, currentEditIndex + 1);
-            editHistory.push(canvas.toDataURL());
+            editHistory.push({
+                imageData: canvas.toDataURL(),
+                textElements: JSON.parse(JSON.stringify(textElements))
+            });
             currentEditIndex = editHistory.length - 1;
             updateUndoRedoButtons();
         }
@@ -311,7 +317,7 @@
         function undo() {
             if (currentEditIndex > 0) {
                 currentEditIndex--;
-                loadImageFromDataURL(editHistory[currentEditIndex]);
+                loadEditState(editHistory[currentEditIndex]);
                 updateUndoRedoButtons();
             }
         }
@@ -319,7 +325,7 @@
         function redo() {
             if (currentEditIndex < editHistory.length - 1) {
                 currentEditIndex++;
-                loadImageFromDataURL(editHistory[currentEditIndex]);
+                loadEditState(editHistory[currentEditIndex]);
                 updateUndoRedoButtons();
             }
         }
@@ -327,8 +333,15 @@
         function reset() {
             if (currentImage) {
                 loadImageFromDataURL(currentImage);
+                textElements = [];
                 saveEditState();
             }
+        }
+
+        function loadEditState(state) {
+            loadImageFromDataURL(state.imageData);
+            textElements = state.textElements;
+            redrawCanvas();
         }
 
         function loadImageFromDataURL(dataURL) {
@@ -337,8 +350,18 @@
                 canvas.width = img.width;
                 canvas.height = img.height;
                 ctx.drawImage(img, 0, 0);
+                redrawCanvas();
             };
             img.src = dataURL;
+        }
+
+        function redrawCanvas() {
+            ctx.drawImage(canvas, 0, 0);
+            textElements.forEach(element => {
+                ctx.font = `${element.size}px Arial`;
+                ctx.fillStyle = element.color;
+                ctx.fillText(element.text, element.x, element.y);
+            });
         }
 
         async function saveImage() {
@@ -386,6 +409,7 @@
                     canvas.height = img.height;
                     ctx.drawImage(img, 0, 0);
                     currentImage = canvas.toDataURL();
+                    textElements = [];
                     saveEditState();
                 };
                 img.src = URL.createObjectURL(new Blob([imageBlob], { type: 'image/png' }));
@@ -473,10 +497,17 @@
 
         function addText() {
             const text = document.getElementById('textInput').value;
+            const color = document.getElementById('textColor').value;
+            const size = parseInt(document.getElementById('textSize').value);
             if (text) {
-                ctx.font = '30px Arial';
-                ctx.fillStyle = 'black';
-                ctx.fillText(text, 50, 50);
+                textElements.push({
+                    text,
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    color,
+                    size
+                });
+                redrawCanvas();
                 saveEditState();
             }
             textModal.style.display = 'none';
@@ -494,6 +525,7 @@
             canvas.width = tempCanvas.width;
             canvas.height = tempCanvas.height;
             ctx.drawImage(tempCanvas, 0, 0);
+            redrawCanvas();
             saveEditState();
         }
 
@@ -509,6 +541,7 @@
                 canvas.width = width;
                 canvas.height = height;
                 ctx.drawImage(tempCanvas, 0, 0);
+                redrawCanvas();
                 saveEditState();
             }
             resizeModal.style.display = 'none';
@@ -541,6 +574,7 @@
                     break;
             }
             ctx.putImageData(imageData, 0, 0);
+            redrawCanvas();
             saveEditState();
             filterModal.style.display = 'none';
         }
