@@ -253,6 +253,8 @@
         let lastY = 0;
         let currentTool = 'brush';
         let textElements = [];
+        let isDraggingText = false;
+        let selectedTextIndex = -1;
 
         const backendCanisterIdEnvVar = 'BACKEND_CANISTER_ID';
         const backendCanisterId = process.env[backendCanisterIdEnvVar] || '';
@@ -385,10 +387,23 @@
 
         function redrawCanvas() {
             ctx.drawImage(canvas, 0, 0);
-            textElements.forEach(element => {
+            textElements.forEach((element, index) => {
                 ctx.font = `${element.size}px Arial`;
                 ctx.fillStyle = element.color;
                 ctx.fillText(element.text, element.x, element.y);
+                
+                // Draw a border around the selected text
+                if (index === selectedTextIndex) {
+                    const metrics = ctx.measureText(element.text);
+                    ctx.strokeStyle = 'red';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(
+                        element.x - 5,
+                        element.y - element.size,
+                        metrics.width + 10,
+                        element.size + 10
+                    );
+                }
             });
         }
 
@@ -628,6 +643,55 @@
             }, 3000);
         }
 
+        function startDraggingText(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            for (let i = textElements.length - 1; i >= 0; i--) {
+                const element = textElements[i];
+                ctx.font = `${element.size}px Arial`;
+                const metrics = ctx.measureText(element.text);
+                if (
+                    x >= element.x &&
+                    x <= element.x + metrics.width &&
+                    y >= element.y - element.size &&
+                    y <= element.y
+                ) {
+                    isDraggingText = true;
+                    selectedTextIndex = i;
+                    lastX = x;
+                    lastY = y;
+                    redrawCanvas();
+                    break;
+                }
+            }
+        }
+
+        function dragText(e) {
+            if (!isDraggingText) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const dx = x - lastX;
+            const dy = y - lastY;
+            
+            textElements[selectedTextIndex].x += dx;
+            textElements[selectedTextIndex].y += dy;
+            
+            lastX = x;
+            lastY = y;
+            
+            redrawCanvas();
+        }
+
+        function stopDraggingText() {
+            if (isDraggingText) {
+                isDraggingText = false;
+                saveEditState();
+            }
+        }
+
         imageUpload.addEventListener('change', handleImageUpload);
         undoButton.addEventListener('click', undo);
         redoButton.addEventListener('click', redo);
@@ -639,6 +703,10 @@
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
+        canvas.addEventListener('mousedown', startDraggingText);
+        canvas.addEventListener('mousemove', dragText);
+        canvas.addEventListener('mouseup', stopDraggingText);
+        canvas.addEventListener('mouseout', stopDraggingText);
         tools.forEach(tool => tool.addEventListener('click', () => setActiveTool(tool.dataset.tool)));
         document.getElementById('addTextButton').addEventListener('click', addText);
         document.getElementById('resizeButton').addEventListener('click', resizeImage);
