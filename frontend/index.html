@@ -13,12 +13,12 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: black;
+            background-color: #1a202c;
             color: white;
         }
         .container {
             width: 100%;
-            max-width: 800px;
+            max-width: 1200px;
             padding: 20px;
         }
         .controls {
@@ -26,19 +26,20 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 16px;
+            flex-wrap: wrap;
         }
         .image-container {
-            aspect-ratio: 1;
-            background-color: #4a5568;
+            aspect-ratio: 16/9;
+            background-color: #2d3748;
             margin-bottom: 16px;
             position: relative;
             overflow: hidden;
             border-radius: 8px;
         }
-        .image-container img {
+        .image-container img, .image-container canvas {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
         }
         .upload-label {
             position: absolute;
@@ -54,42 +55,6 @@
         .upload-input {
             display: none;
         }
-        .grid-container {
-            aspect-ratio: 1;
-            background: linear-gradient(to bottom right, #4a5568, #1a202c);
-            position: relative;
-            cursor: crosshair;
-            border-radius: 8px;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(11, 1fr);
-            grid-template-rows: repeat(11, 1fr);
-            position: absolute;
-            inset: 0;
-        }
-        .grid-dot {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .dot {
-            width: 4px;
-            height: 4px;
-            border-radius: 50%;
-            background-color: white;
-            opacity: 0.3;
-            transition: width 0.1s, height 0.1s, opacity 0.1s, background-color 0.1s;
-        }
-        .cursor {
-            position: absolute;
-            width: 32px;
-            height: 32px;
-            background-color: white;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            transition: left 0.1s, top 0.1s;
-        }
         .button {
             background-color: #3182ce;
             color: white;
@@ -98,16 +63,20 @@
             border-radius: 4px;
             cursor: pointer;
             margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        .button:hover {
+            background-color: #2c5282;
         }
         .gallery {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             gap: 16px;
             margin-top: 16px;
         }
         .gallery-item {
             aspect-ratio: 1;
-            background-color: #4a5568;
+            background-color: #2d3748;
             border-radius: 4px;
             overflow: hidden;
             cursor: pointer;
@@ -116,6 +85,57 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+        .toolbar {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .tool {
+            background-color: #4a5568;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        .tool.active {
+            background-color: #3182ce;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #2d3748;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 500px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover,
+        .close:focus {
+            color: #fff;
+            text-decoration: none;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -127,33 +147,63 @@
         </div>
         <div class="controls">
             <div>
-                <span id="toneValue">TONE 0</span>
-                <span id="colorValue">COLOR 0</span>
-                <span id="contrastValue">CONTRAST 0</span>
-                <span id="hueValue">HUE 0</span>
-            </div>
-            <div>
                 <button id="undoButton" class="button">Undo</button>
                 <button id="redoButton" class="button">Redo</button>
                 <button id="resetButton" class="button">Reset</button>
                 <button id="saveButton" class="button">Save</button>
                 <button id="shareButton" class="button">Share</button>
+                <button id="exportButton" class="button">Export</button>
             </div>
         </div>
         
+        <div class="toolbar">
+            <button class="tool" data-tool="brush">Brush</button>
+            <button class="tool" data-tool="eraser">Eraser</button>
+            <button class="tool" data-tool="text">Text</button>
+            <button class="tool" data-tool="crop">Crop</button>
+            <button class="tool" data-tool="rotate">Rotate</button>
+            <button class="tool" data-tool="resize">Resize</button>
+            <button class="tool" data-tool="filter">Filters</button>
+        </div>
+        
         <div class="image-container" id="imageContainer">
+            <canvas id="canvas"></canvas>
             <label class="upload-label">
                 Upload Image
                 <input type="file" accept="image/*" class="upload-input" id="imageUpload">
             </label>
         </div>
-        
-        <div class="grid-container" id="gridContainer">
-            <div class="grid" id="grid"></div>
-            <div class="cursor" id="cursor"></div>
-        </div>
 
         <div class="gallery" id="gallery"></div>
+    </div>
+
+    <div id="textModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add Text</h2>
+            <input type="text" id="textInput" placeholder="Enter text">
+            <button id="addTextButton" class="button">Add Text</button>
+        </div>
+    </div>
+
+    <div id="resizeModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Resize Image</h2>
+            <input type="number" id="widthInput" placeholder="Width">
+            <input type="number" id="heightInput" placeholder="Height">
+            <button id="resizeButton" class="button">Resize</button>
+        </div>
+    </div>
+
+    <div id="filterModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Apply Filter</h2>
+            <button class="button" data-filter="grayscale">Grayscale</button>
+            <button class="button" data-filter="sepia">Sepia</button>
+            <button class="button" data-filter="invert">Invert</button>
+        </div>
     </div>
 
     <script type="module">
@@ -162,33 +212,30 @@
 
         let authClient;
         let actor;
-        const imageContainer = document.getElementById('imageContainer');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
         const imageUpload = document.getElementById('imageUpload');
-        const gridContainer = document.getElementById('gridContainer');
-        const grid = document.getElementById('grid');
-        const cursor = document.getElementById('cursor');
-        const toneValue = document.getElementById('toneValue');
-        const colorValue = document.getElementById('colorValue');
-        const contrastValue = document.getElementById('contrastValue');
-        const hueValue = document.getElementById('hueValue');
         const undoButton = document.getElementById('undoButton');
         const redoButton = document.getElementById('redoButton');
         const resetButton = document.getElementById('resetButton');
         const saveButton = document.getElementById('saveButton');
         const shareButton = document.getElementById('shareButton');
+        const exportButton = document.getElementById('exportButton');
         const gallery = document.getElementById('gallery');
         const loginButton = document.getElementById('loginButton');
         const principalId = document.getElementById('principalId');
+        const tools = document.querySelectorAll('.tool');
+        const textModal = document.getElementById('textModal');
+        const resizeModal = document.getElementById('resizeModal');
+        const filterModal = document.getElementById('filterModal');
 
-        let tone = 0;
-        let color = 0;
-        let contrast = 0;
-        let hue = 0;
-        let isDragging = false;
-        let image = null;
-        const gridSize = 11;
+        let currentImage = null;
         let editHistory = [];
         let currentEditIndex = -1;
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        let currentTool = 'brush';
 
         const backendCanisterIdEnvVar = 'BACKEND_CANISTER_ID';
         const backendCanisterId = process.env[backendCanisterIdEnvVar] || '';
@@ -235,108 +282,23 @@
         function handleImageUpload(event) {
             const file = event.target.files[0];
             const reader = new FileReader();
-            reader.onloadend = () => {
-                image = reader.result;
-                updateImage();
-                saveEditState();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    currentImage = canvas.toDataURL();
+                    saveEditState();
+                };
+                img.src = e.target.result;
             };
-            if (file) {
-                reader.readAsDataURL(file);
-            }
-        }
-
-        function updateImage() {
-            if (image) {
-                imageContainer.innerHTML = `<img src="${image}" alt="Uploaded image" style="filter: brightness(${1 + tone/100}) saturate(${1 + color/100}) contrast(${1 + contrast/100}) hue-rotate(${hue}deg)">`;
-            }
-        }
-
-        function snapToGrid(value) {
-            return Math.round(value / (100 / (gridSize - 1))) * (100 / (gridSize - 1));
-        }
-
-        function updateValues(clientX, clientY) {
-            const rect = gridContainer.getBoundingClientRect();
-            const x = (clientX - rect.left) / rect.width;
-            const y = 1 - (clientY - rect.top) / rect.height;
-            const newTone = snapToGrid(Math.round(x * 200 - 100));
-            const newColor = snapToGrid(Math.round(y * 200 - 100));
-
-            tone = Math.max(-100, Math.min(100, newTone));
-            color = Math.max(-100, Math.min(100, newColor));
-
-            toneValue.textContent = `TONE ${tone}`;
-            colorValue.textContent = `COLOR ${color}`;
-
-            updateCursor();
-            updateImage();
-            updateGridDots();
-            saveEditState();
-        }
-
-        function updateCursor() {
-            cursor.style.left = `${(tone + 100) / 2}%`;
-            cursor.style.top = `${100 - (color + 100) / 2}%`;
-        }
-
-        function calculateDotStyle(dotX, dotY) {
-            const cursorX = (tone + 100) / (200 / (gridSize - 1));
-            const cursorY = (100 - color) / (200 / (gridSize - 1));
-            const dx = Math.abs(dotX - cursorX);
-            const dy = Math.abs(dotY - cursorY);
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            const maxInfluence = 2;
-            if (distance <= maxInfluence) {
-                const minSize = 4;
-                const maxSize = 16;
-                const size = minSize + (maxSize - minSize) * (1 - distance / maxInfluence);
-                const opacity = 0.3 + (0.7 * (1 - distance / maxInfluence));
-                return `width: ${size}px; height: ${size}px; opacity: ${opacity}; background-color: hsl(${(1 - distance / maxInfluence) * 60}, 100%, 75%);`;
-            }
-            return '';
-        }
-
-        function updateGridDots() {
-            const dots = grid.querySelectorAll('.dot');
-            dots.forEach((dot, i) => {
-                const x = i % gridSize;
-                const y = Math.floor(i / gridSize);
-                dot.style = calculateDotStyle(x, y);
-            });
-        }
-
-        function createGrid() {
-            for (let i = 0; i < gridSize * gridSize; i++) {
-                const dotContainer = document.createElement('div');
-                dotContainer.className = 'grid-dot';
-                const dot = document.createElement('div');
-                dot.className = 'dot';
-                dotContainer.appendChild(dot);
-                grid.appendChild(dotContainer);
-            }
-        }
-
-        function handlePointerDown(event) {
-            event.preventDefault();
-            isDragging = true;
-            updateValues(event.clientX, event.clientY);
-        }
-
-        function handlePointerMove(event) {
-            if (isDragging) {
-                updateValues(event.clientX, event.clientY);
-            }
-        }
-
-        function handlePointerUp() {
-            isDragging = false;
+            reader.readAsDataURL(file);
         }
 
         function saveEditState() {
-            const state = { tone, color, contrast, hue };
             editHistory = editHistory.slice(0, currentEditIndex + 1);
-            editHistory.push(state);
+            editHistory.push(canvas.toDataURL());
             currentEditIndex = editHistory.length - 1;
             updateUndoRedoButtons();
         }
@@ -349,14 +311,7 @@
         function undo() {
             if (currentEditIndex > 0) {
                 currentEditIndex--;
-                const state = editHistory[currentEditIndex];
-                tone = state.tone;
-                color = state.color;
-                contrast = state.contrast;
-                hue = state.hue;
-                updateImage();
-                updateCursor();
-                updateGridDots();
+                loadImageFromDataURL(editHistory[currentEditIndex]);
                 updateUndoRedoButtons();
             }
         }
@@ -364,54 +319,43 @@
         function redo() {
             if (currentEditIndex < editHistory.length - 1) {
                 currentEditIndex++;
-                const state = editHistory[currentEditIndex];
-                tone = state.tone;
-                color = state.color;
-                contrast = state.contrast;
-                hue = state.hue;
-                updateImage();
-                updateCursor();
-                updateGridDots();
+                loadImageFromDataURL(editHistory[currentEditIndex]);
                 updateUndoRedoButtons();
             }
         }
 
         function reset() {
-            tone = 0;
-            color = 0;
-            contrast = 0;
-            hue = 0;
-            updateImage();
-            updateCursor();
-            updateGridDots();
-            saveEditState();
+            if (currentImage) {
+                loadImageFromDataURL(currentImage);
+                saveEditState();
+            }
+        }
+
+        function loadImageFromDataURL(dataURL) {
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = dataURL;
         }
 
         async function saveImage() {
-            if (!image) return;
+            if (!canvas.toDataURL()) return;
 
-            const canvas = document.createElement('canvas');
-            const img = new Image();
-            img.onload = async () => {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.filter = `brightness(${1 + tone/100}) saturate(${1 + color/100}) contrast(${1 + contrast/100}) hue-rotate(${hue}deg)`;
-                ctx.drawImage(img, 0, 0);
-                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-                const arrayBuffer = await blob.arrayBuffer();
-                const name = `image_${Date.now()}.png`;
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            const arrayBuffer = await blob.arrayBuffer();
+            const name = `image_${Date.now()}.png`;
 
-                try {
-                    await actor.uploadImage(name, [...new Uint8Array(arrayBuffer)]);
-                    alert('Image saved successfully!');
-                    loadGallery();
-                } catch (error) {
-                    console.error('Error saving image:', error);
-                    alert('Failed to save image. Please try again.');
-                }
-            };
-            img.src = image;
+            try {
+                await actor.uploadImage(name, [...new Uint8Array(arrayBuffer)]);
+                alert('Image saved successfully!');
+                loadGallery();
+            } catch (error) {
+                console.error('Error saving image:', error);
+                alert('Failed to save image. Please try again.');
+            }
         }
 
         async function loadGallery() {
@@ -436,54 +380,192 @@
         async function loadImageFromGallery(name) {
             try {
                 const imageBlob = await actor.getImage(name);
-                image = URL.createObjectURL(new Blob([imageBlob], { type: 'image/png' }));
-                updateImage();
-                saveEditState();
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    currentImage = canvas.toDataURL();
+                    saveEditState();
+                };
+                img.src = URL.createObjectURL(new Blob([imageBlob], { type: 'image/png' }));
             } catch (error) {
                 console.error('Error loading image from gallery:', error);
             }
         }
 
         function shareImage() {
-            if (!image) return;
-            const canvas = document.createElement('canvas');
-            const img = new Image();
-            img.onload = () => {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.filter = `brightness(${1 + tone/100}) saturate(${1 + color/100}) contrast(${1 + contrast/100}) hue-rotate(${hue}deg)`;
-                ctx.drawImage(img, 0, 0);
-                canvas.toBlob(blob => {
-                    const file = new File([blob], "edited_image.png", { type: "image/png" });
-                    const shareData = {
-                        files: [file],
-                    };
-                    if (navigator.share && navigator.canShare(shareData)) {
-                        navigator.share(shareData)
-                            .then(() => console.log('Image shared successfully'))
-                            .catch((error) => console.log('Error sharing image:', error));
-                    } else {
-                        alert('Sharing is not supported on this device/browser');
+            if (!canvas.toDataURL()) return;
+            canvas.toBlob(blob => {
+                const file = new File([blob], "edited_image.png", { type: "image/png" });
+                const shareData = {
+                    files: [file],
+                };
+                if (navigator.share && navigator.canShare(shareData)) {
+                    navigator.share(shareData)
+                        .then(() => console.log('Image shared successfully'))
+                        .catch((error) => console.log('Error sharing image:', error));
+                } else {
+                    alert('Sharing is not supported on this device/browser');
+                }
+            }, 'image/png');
+        }
+
+        function exportImage() {
+            if (!canvas.toDataURL()) return;
+            const link = document.createElement('a');
+            link.download = 'edited_image.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+            saveEditState();
+        }
+
+        function setActiveTool(tool) {
+            currentTool = tool;
+            tools.forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-tool="${tool}"]`).classList.add('active');
+
+            switch(tool) {
+                case 'brush':
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 5;
+                    break;
+                case 'eraser':
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.lineWidth = 20;
+                    break;
+                case 'text':
+                    textModal.style.display = 'block';
+                    break;
+                case 'crop':
+                    // Implement crop functionality
+                    break;
+                case 'rotate':
+                    rotateImage();
+                    break;
+                case 'resize':
+                    resizeModal.style.display = 'block';
+                    break;
+                case 'filter':
+                    filterModal.style.display = 'block';
+                    break;
+            }
+        }
+
+        function addText() {
+            const text = document.getElementById('textInput').value;
+            if (text) {
+                ctx.font = '30px Arial';
+                ctx.fillStyle = 'black';
+                ctx.fillText(text, 50, 50);
+                saveEditState();
+            }
+            textModal.style.display = 'none';
+        }
+
+        function rotateImage() {
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = canvas.height;
+            tempCanvas.height = canvas.width;
+            tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+            tempCtx.rotate(Math.PI / 2);
+            tempCtx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.width = tempCanvas.width;
+            canvas.height = tempCanvas.height;
+            ctx.drawImage(tempCanvas, 0, 0);
+            saveEditState();
+        }
+
+        function resizeImage() {
+            const width = parseInt(document.getElementById('widthInput').value);
+            const height = parseInt(document.getElementById('heightInput').value);
+            if (width && height) {
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = width;
+                tempCanvas.height = height;
+                tempCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, width, height);
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(tempCanvas, 0, 0);
+                saveEditState();
+            }
+            resizeModal.style.display = 'none';
+        }
+
+        function applyFilter(filter) {
+            let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            let data = imageData.data;
+            switch(filter) {
+                case 'grayscale':
+                    for (let i = 0; i < data.length; i += 4) {
+                        let avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                        data[i] = data[i + 1] = data[i + 2] = avg;
                     }
-                }, 'image/png');
-            };
-            img.src = image;
+                    break;
+                case 'sepia':
+                    for (let i = 0; i < data.length; i += 4) {
+                        let r = data[i], g = data[i + 1], b = data[i + 2];
+                        data[i] = Math.min(255, (r * 0.393) + (g * 0.769) + (b * 0.189));
+                        data[i + 1] = Math.min(255, (r * 0.349) + (g * 0.686) + (b * 0.168));
+                        data[i + 2] = Math.min(255, (r * 0.272) + (g * 0.534) + (b * 0.131));
+                    }
+                    break;
+                case 'invert':
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i] = 255 - data[i];
+                        data[i + 1] = 255 - data[i + 1];
+                        data[i + 2] = 255 - data[i + 2];
+                    }
+                    break;
+            }
+            ctx.putImageData(imageData, 0, 0);
+            saveEditState();
+            filterModal.style.display = 'none';
         }
 
         imageUpload.addEventListener('change', handleImageUpload);
-        gridContainer.addEventListener('pointerdown', handlePointerDown);
-        gridContainer.addEventListener('pointermove', handlePointerMove);
-        gridContainer.addEventListener('pointerup', handlePointerUp);
-        gridContainer.addEventListener('pointerleave', handlePointerUp);
         undoButton.addEventListener('click', undo);
         redoButton.addEventListener('click', redo);
         resetButton.addEventListener('click', reset);
         saveButton.addEventListener('click', saveImage);
         shareButton.addEventListener('click', shareImage);
+        exportButton.addEventListener('click', exportImage);
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+        tools.forEach(tool => tool.addEventListener('click', () => setActiveTool(tool.dataset.tool)));
+        document.getElementById('addTextButton').addEventListener('click', addText);
+        document.getElementById('resizeButton').addEventListener('click', resizeImage);
+        document.querySelectorAll('#filterModal .button').forEach(btn => {
+            btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
+        });
+        document.querySelectorAll('.close').forEach(closeBtn => {
+            closeBtn.addEventListener('click', () => closeBtn.closest('.modal').style.display = 'none');
+        });
 
-        createGrid();
-        updateCursor();
         initAuth();
     </script>
 </body>

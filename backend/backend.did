@@ -9,8 +9,10 @@ type Result =
    ok;
  };
 service : {
+  clearAllImages: () -> ();
   deleteImage: (text) -> (Result);
   getImage: (text) -> (Result_1) query;
+  getStorageUsage: () -> (nat) query;
   listImages: () -> (vec text) query;
   uploadImage: (text, vec nat8) -> (Result);
 }
